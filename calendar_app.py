@@ -4,6 +4,8 @@ from threading import Thread
 from UdpServer import UdpServer
 from calendar import Calendar
 from paxos import Worker
+from event import Event
+
 
 
 # -----------------------------------------------------------------------------
@@ -45,45 +47,66 @@ def read_known_hosts():
     return site_id, site_index, int(port), hosts
 
 # -----------------------------------------------------------------------------
-def parse_command(user_input, calendar, worker):
+def parse_command(user_input, calendar):
+    global worker
+
     user_input = user_input.split()
     command = user_input[0]
     command = command.lower()
     args = user_input[1:]
 
+    # proposer proposes a new event
+    # if successful, add it to the calendar
     if command == "schedule":
-        # proposer proposes a value
-        # if successful add it to the calendar
-        accepted = worker.propose_new(args)
+        # first verify this site is a participant in the new event
+        event_string = " ".join(args)
+        event = Event.load(event_string)
+        if worker.ID not in event.participants:
+            print("You cannot schedule an event for other users")
+            return
+
+        # propose the new event
+        accepted = worker.propose_new(event)
         if accepted:
-            calendar.schedule(args)
+            calendar.schedule(event)
+
+    # proposer proposes an event cancellation
+    # if successful, remove it from the calendar
     elif command == "cancel":
+        # first verify that the event exists and this site is a participant
         event_name = args[0]
         participants = calendar.get_participants(event_name)
         if participants == None:
             return
 
-        # proposer proposes a value
-        # if successful, delete it from the calendar
-        result = worker.propose_cancellation(event_name, participants)
-        calendar.cancel(event_name)
+        # propose the event cancellation
+        accepted = worker.propose_cancellation(event_name, participants)
+        if accepted:
+            calendar.cancel(event_name)
+
+    # view the entire calendar
     elif command == "view":
-        calendar.view()     # no proposals necessary    
+        calendar.view()
+
+    # view all events this site is particpating in  
     elif command == "myview":
-        calendar.myview()   # no proposals necessary
+        calendar.myview()
+
+    # view the log
     elif command == "log":
         print("User requested LOG")
+
+    # all other commands are invalid
     else:
         print("ERROR: Invalid command.")
-
-
-
 
 
 
 # -----------------------------------------------------------------------------
 def user_input(site_id, sites, port):
     global running
+    global worker
+
     calendar = Calendar(site_id)
     
     while running:
@@ -94,12 +117,13 @@ def user_input(site_id, sites, port):
             running = False
             break
         else:
-            parse_command(command, calendar, worker)
+            parse_command(command, calendar)
 
 
 # -----------------------------------------------------------------------------
 def server(site_id, port):
     global running
+    global worker
 
     docker = False
     if docker:
@@ -116,6 +140,8 @@ def server(site_id, port):
 
 
 # =============================================================================
+
+# all threads need access to these resources
 running = True
 worker = None
 
