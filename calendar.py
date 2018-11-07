@@ -7,12 +7,8 @@ class Calendar:
         self.events = []
         self.ID = ID
 
-    def schedule(self, args):
-        name, day, start, end = args[0:4]
-        participants = args[4:]
-        if len(participants) == 1:
-            participants = participants[0].split(",")
-        self.events.append(Event(name, day, start, end, participants))
+    def schedule(self, event):
+        self.events.append(event)
         self.events.sort()
         print("User requested SCHEDULE")
 
@@ -20,7 +16,7 @@ class Calendar:
         print("User requested CANCEL")
         # modify the event list to remove the meeting
         self.events = [event for event in self.events if event.name != event_name]
-        
+
 
     def get_participants(self, event_name):
         participants = []
@@ -29,9 +25,9 @@ class Calendar:
                 if self.ID in e.participants:
                     return e.participants
                 else:
-                    print("You cannot cancel an event you are not participating in")
+                    print("You are not participating in that event")
                     return None
-        print("Event doesn't exist. Cancellation failed.")
+        print("Event doesn't exist.")
         return None           
 
 
@@ -44,6 +40,11 @@ class Calendar:
 
     def myview(self):
         print("User requested MYVIEW")
+        for e in self.events:
+            for p in e.participants:
+                if self.ID in p:
+                    print(e)
+                    break
 
     def checkpoint():
         print("Save a copy of the calendar")
