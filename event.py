@@ -20,13 +20,7 @@ class Event:
         return result
         
     def load(event_str):
-        e = Event()
-        name,date,start,end,participants = event_str.split(" ", 4)
-        e.date = date
-        e.start = start
-        e.end = end
-        e.name = name
-        e.participants = participants
-        if not isinstance(participants, list):
-            e.participants = [e.participants]
+        name,date,start,end,participants = event_str.split(" ")
+        participants = participants.split(",")
+        e = Event(name, date, start, end, participants)
         return e
