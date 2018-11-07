@@ -3,6 +3,7 @@ from threading import Thread
 
 from UdpServer import UdpServer
 from calendar import Calendar
+from paxos import Worker
 
 
 # -----------------------------------------------------------------------------
@@ -44,25 +45,28 @@ def read_known_hosts():
     return site_id, site_index, int(port), hosts
 
 # -----------------------------------------------------------------------------
-def parse_command(user_input, calendar):
+def parse_command(user_input, calendar, worker):
     user_input = user_input.split()
     command = user_input[0]
     command = command.lower()
     args = user_input[1:]
 
     if command == "schedule":
-        name, day, start, end = args[0:4]
-        participants = args[4:]
-        if len(participants) == 1:
-            participants = participants[0].split(",")
         # proposer proposes a value
-        # if successful add it to the schedule:
-        
-        calendar.schedule(name, day, start, end, participants)
+        # if successful add it to the calendar
+        accepted = worker.propose_new(args)
+        if accepted:
+            calendar.schedule(args)
     elif command == "cancel":
+        event_name = args[0]
+        participants = calendar.get_participants(event_name)
+        if participants == None:
+            return
+
         # proposer proposes a value
-        # if successful:
-        calendar.cancel()
+        # if successful, delete it from the calendar
+        result = worker.propose_cancellation(event_name, participants)
+        calendar.cancel(event_name)
     elif command == "view":
         calendar.view()     # no proposals necessary    
     elif command == "myview":
@@ -78,9 +82,9 @@ def parse_command(user_input, calendar):
 
 
 # -----------------------------------------------------------------------------
-def user_input():
+def user_input(site_id, sites, port):
     global running
-    calendar = Calendar()
+    calendar = Calendar(site_id)
     
     while running:
         command = input("Enter a command: ")
@@ -90,7 +94,7 @@ def user_input():
             running = False
             break
         else:
-            parse_command(command, calendar)
+            parse_command(command, calendar, worker)
 
 
 # -----------------------------------------------------------------------------
@@ -113,12 +117,15 @@ def server(site_id, port):
 
 # =============================================================================
 running = True
+worker = None
 
 if __name__ == "__main__":
-    site_id, site_index, port, hosts = read_known_hosts()
-    print(site_id, site_index, port, hosts)
+    site_id, site_index, port, sites = read_known_hosts()
+    print(site_id, site_index, port, sites)
+    worker = Worker(site_id, sites, port)
 
-    t1 = Thread(target=user_input, args=())
+    # one thread to run the server, one for user input
+    t1 = Thread(target=user_input, args=(site_id, sites, port))
     t2 = Thread(target=server, args=(site_id, port))
 
     t1.start()
