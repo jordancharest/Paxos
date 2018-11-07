@@ -6,11 +6,8 @@ class Worker:
         self.ID = ID
         self.proposal_num = port
 
-    def propose_new(self, args):
-        name, day, start, end = args[0:4]
-        participants = args[4:]
-        if len(participants) == 1:
-            participants = participants[0].split(",")
+    def propose_new(self, event):
+
 
         return True
 
