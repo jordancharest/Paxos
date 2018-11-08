@@ -17,11 +17,6 @@ class UdpServer:
         self.sock.sendto(pickle.dumps(data), address)
 
     def receive(self, size=1024):
-        """
-        Non-blocking receive because I don't want to do multi-threading in
-        Python. Not sure how well it will work. Throws socket.error if there
-        are no messages in the network buffer
-        """
         try:
             data, address = self.sock.recvfrom(size)
         except socket.error:
