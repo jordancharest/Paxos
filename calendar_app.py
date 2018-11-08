@@ -1,6 +1,8 @@
 from sys import argv
-from threading import Thread
+from time import sleep
+import threading
 
+import config
 from UdpServer import UdpServer
 from calendar import Calendar
 from paxos import Worker
@@ -48,8 +50,6 @@ def read_known_hosts():
 
 # -----------------------------------------------------------------------------
 def parse_command(user_input, calendar):
-    global worker
-
     user_input = user_input.split()
     command = user_input[0]
     command = command.lower()
@@ -61,14 +61,16 @@ def parse_command(user_input, calendar):
         # first verify this site is a participant in the new event
         event_string = " ".join(args)
         event = Event.load(event_string)
-        if worker.ID not in event.participants:
+        if config.worker.ID not in event.participants:
             print("You cannot schedule an event for other users")
             return
 
-        # propose the new event
-        accepted = worker.propose_new(event)
+        # run Paxos proposal algorithm
+        accepted = config.worker.propose_new(event)
         if accepted:
             calendar.schedule(event)
+        else:
+            print("We never heard back from majority")
 
     # proposer proposes an event cancellation
     # if successful, remove it from the calendar
@@ -80,7 +82,7 @@ def parse_command(user_input, calendar):
             return
 
         # propose the event cancellation
-        accepted = worker.propose_cancellation(event_name, participants)
+        accepted = config.worker.propose_cancellation(event_name, participants)
         if accepted:
             calendar.cancel(event_name)
 
@@ -104,17 +106,13 @@ def parse_command(user_input, calendar):
 
 # -----------------------------------------------------------------------------
 def user_input(site_id, sites, port):
-    global running
-    global worker
-
     calendar = Calendar(site_id)
     
-    while running:
+    while config.running:
         command = input("Enter a command: ")
-        print(command)
         if command.lower() == "quit" or command == "exit":
             print("Exiting.")
-            running = False
+            config.running = False
             break
         else:
             parse_command(command, calendar)
@@ -122,37 +120,26 @@ def user_input(site_id, sites, port):
 
 # -----------------------------------------------------------------------------
 def server(site_id, port):
-    global running
-    global worker
+    server = UdpServer(site_id, port, 0.0)
+    config.worker.server = server
 
-    docker = False
-    if docker:
-        print("This line should only print if you are running on Docker")
-        server = UdpServer(site_id, port, 1.0)
-    else:
-        print("Not running on Docker - using ip = 127.0.0.1")
-        server = UdpServer("127.0.0.1", port, 1.0)   # else use this line
-
-    while running:
-        # attempt to receive any message
+    while config.running:
+        config.mutex.acquire()
         data, address = server.receive()
-        # print("Receive timed out")
+        config.mutex.release()
+        if data:
+            config.worker.accept(data)
+        sleep(1.0)
 
 
 # =============================================================================
-
-# all threads need access to these resources
-running = True
-worker = None
-
 if __name__ == "__main__":
     site_id, site_index, port, sites = read_known_hosts()
-    print(site_id, site_index, port, sites)
-    worker = Worker(site_id, sites, port)
+    config.worker = Worker(site_id, sites, port)
 
     # one thread to run the server, one for user input
-    t1 = Thread(target=user_input, args=(site_id, sites, port))
-    t2 = Thread(target=server, args=(site_id, port))
+    t1 = threading.Thread(target=user_input, args=(site_id, sites, port))
+    t2 = threading.Thread(target=server, args=(site_id, port))
 
     t1.start()
     t2.start()
