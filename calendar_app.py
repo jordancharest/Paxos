@@ -49,7 +49,7 @@ def read_known_hosts():
     return site_id, site_index, int(port), hosts
 
 # -----------------------------------------------------------------------------
-def parse_command(user_input, calendar):
+def parse_command(user_input):
     user_input = user_input.split()
     command = user_input[0]
     command = command.lower()
@@ -68,7 +68,7 @@ def parse_command(user_input, calendar):
         # run Paxos proposal algorithm
         accepted = config.worker.propose_new(event)
         if accepted:
-            calendar.schedule(event)
+            config.calendar.schedule(event)
         else:
             print("We never heard back from majority")
 
@@ -77,22 +77,22 @@ def parse_command(user_input, calendar):
     elif command == "cancel":
         # first verify that the event exists and this site is a participant
         event_name = args[0]
-        participants = calendar.get_participants(event_name)
+        participants = config.calendar.get_participants(event_name)
         if participants == None:
             return
 
         # propose the event cancellation
         accepted = config.worker.propose_cancellation(event_name, participants)
         if accepted:
-            calendar.cancel(event_name)
+            config.calendar.cancel(event_name)
 
     # view the entire calendar
     elif command == "view":
-        calendar.view()
+        config.calendar.view()
 
     # view all events this site is particpating in  
     elif command == "myview":
-        calendar.myview()
+        config.calendar.myview()
 
     # view the log
     elif command == "log":
@@ -105,9 +105,7 @@ def parse_command(user_input, calendar):
 
 
 # -----------------------------------------------------------------------------
-def user_input(site_id, sites, port):
-    calendar = Calendar(site_id)
-    
+def user_input(site_id, sites, port):    
     while config.running:
         command = input("Enter a command: ")
         if command.lower() == "quit" or command == "exit":
@@ -115,14 +113,11 @@ def user_input(site_id, sites, port):
             config.running = False
             break
         else:
-            parse_command(command, calendar)
+            parse_command(command)
 
 
 # -----------------------------------------------------------------------------
-def server(site_id, port):
-    server = UdpServer(site_id, port, 0.0)
-    config.worker.server = server
-
+def run_server(site_id, port):
     while config.running:
         config.mutex.acquire()
         data, address = server.receive()
@@ -135,11 +130,16 @@ def server(site_id, port):
 # =============================================================================
 if __name__ == "__main__":
     site_id, site_index, port, sites = read_known_hosts()
+
+    # initialize globals
     config.worker = Worker(site_id, sites, port)
+    config.calendar = Calendar(site_id)
+    server = UdpServer(site_id, port, 0.0)
+    config.worker.server = server
 
     # one thread to run the server, one for user input
     t1 = threading.Thread(target=user_input, args=(site_id, sites, port))
-    t2 = threading.Thread(target=server, args=(site_id, port))
+    t2 = threading.Thread(target=run_server, args=(site_id, port))
 
     t1.start()
     t2.start()
