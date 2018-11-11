@@ -7,12 +7,6 @@ from math import ceil
 from event import Event
 
 
-
-# TODO:
-#   - verify that the proposal number of this process is the highest that
-#       this process has seen so far
-
-
 class Worker:
     def __init__(self, ID, sites, port, server=None):
         self.ID = ID
