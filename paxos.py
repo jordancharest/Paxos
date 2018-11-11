@@ -4,6 +4,9 @@ import json
 import time
 from math import ceil
 
+from event import Event
+
+
 
 # TODO:
 #   - verify that the proposal number of this process is the highest that
@@ -16,8 +19,7 @@ class Worker:
         self.port = port
         self.sites = [site for site in sites if site[0] != self.ID]
         self.proposal_num = port
-        self.max_accepted = 0
-        self.attempts = 0
+        self.max_accepted = -1
 
     def propose_new(self, event):
         msg = {
@@ -52,6 +54,7 @@ class Worker:
         attempts = 0
         majority = False
         while not majority and attempts < 3:
+            print("Attempt ", attempts)
             accepted, majority = self.propose(msg)
             self.proposal_num += 1000
             attempts += 1
@@ -70,7 +73,7 @@ class Worker:
         for site_id, port in self.sites:
             self.server.send(msg, (site_id, port))
 
-        # receive all messages
+        # receive all messages or timeout
         received = 0
         abort = False
         start = time.time()
@@ -92,26 +95,44 @@ class Worker:
         config.mutex.release()
 
         # if we didn't receive a response from the majority
-        if received < ceil((len(self.sites)-1)/2):
+        if received < ceil(len(self.sites)/2.0):
             return False, False
 
         # not accepted, but a majority responded - to break the loop,
-        # even if a mjority didn't respond
+        # even if a majority didn't respond
         elif abort:
             return False, True
         
 
     def accept(self, msg):
         kind = msg["kind"]
+        accept_num = msg["proposal_num"]
+        print("Received {0} message with proposal number {1}".format(kind, accept_num))
 
         # this may happen if the proposer gives up early due to receiving an abort
         # if it does, just ignore it
-        if kind == "promise" or kind == "failure":
+        if kind == "promise" or kind == "failure" or kind == "abort":
             return
 
-        accept_num = msg["proposal_num"]
-        if msg["new_or_cancel"] == "new":
-            event = Event.load(msg["event"])
-        else:
-            print("Received {0} message with proposal number {1}".format(kind, accept_num))
-            print("Proposal:")
+        if kind == "prepare":
+            # check if the proposal number is high enough
+            if accept_num < self.max_accepted:
+                # send message saying need higher proposal number
+                pass
+
+            # next check for conflicts
+            conflict = config.calendar.conflict_check(msg["event"])
+            if conflict:
+                # send message saying to abort
+                pass
+
+        elif kind == "accept":
+            # verify that the proposal number is equal to the max accepted
+            if msg["proposal_num"] != self.max_accepted:
+                # send message saying there's a new higher proposal number
+                pass
+
+        # paxos fully executed, record event in the log
+        elif kind == "commit":
+            # record event
+            pass
