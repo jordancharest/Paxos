@@ -65,12 +65,13 @@ def parse_command(user_input):
             print("You cannot schedule an event for other users")
             return
 
-        # run Paxos proposal algorithm
-        accepted = config.worker.propose_new(event)
+        # propose the new event (Paxos proposal algorithm)
+        accepted = config.worker.propose(event, "new")
         if accepted:
+            print("SUCCESS!")
             config.calendar.schedule(event)
         else:
-            print("We never heard back from majority")
+            print("Not adding event to calendar")
 
     # proposer proposes an event cancellation
     # if successful, remove it from the calendar
@@ -79,11 +80,13 @@ def parse_command(user_input):
         event_name = args[0]
         participants = config.calendar.get_participants(event_name)
         if participants == None:
+            print("You are not participating in that event")
             return
 
-        # propose the event cancellation
-        accepted = config.worker.propose_cancellation(event_name, participants)
+        # propose the event cancellation (Paxos proposal algorithm)
+        accepted = config.worker.propose(event_name, "cancel", participants)
         if accepted:
+            print("SUCCESS!")
             config.calendar.cancel(event_name)
 
     # view the entire calendar
@@ -107,7 +110,7 @@ def parse_command(user_input):
 # -----------------------------------------------------------------------------
 def user_input(site_id, sites, port):    
     while config.running:
-        command = input("Enter a command: ")
+        command = input("Enter a command:\n")
         if command.lower() == "quit" or command == "exit":
             print("Exiting.")
             config.running = False
@@ -121,10 +124,10 @@ def run_server(site_id, port):
     while config.running:
         config.mutex.acquire()
         data, address = server.receive()
-        config.mutex.release()
         if data:
-            config.worker.accept(data)
-        sleep(1.0)
+            config.worker.accept(data, address)
+        config.mutex.release()
+        sleep(config.server_sleep)
 
 
 # =============================================================================
