@@ -10,10 +10,8 @@ class Calendar:
     def schedule(self, event):
         self.events.append(event)
         self.events.sort()
-        print("User requested SCHEDULE")
 
     def cancel(self, event_name):
-        print("User requested CANCEL")
         # modify the event list to remove the meeting
         self.events = [event for event in self.events if event.name != event_name]
 
@@ -25,12 +23,21 @@ class Calendar:
                 if self.ID in e.participants:
                     return e.participants
                 else:
-                    print("You are not participating in that event")
                     return None
         print("Event doesn't exist.")
-        return None           
+        return None
 
+    def check_conflict(self, event, kind):
+        conflicting_event = None
+        if kind == "new":
+            # check that the time slot is available
+            print("checking that the time slot is available for a new event")
 
+        elif kind == "cancel":
+            # check that the event hasn't already been cancelled
+            print("Checking that the event is in the calendar so we can cancel it")
+
+        return conflicting_event
 
 
     def view(self):
@@ -41,13 +48,14 @@ class Calendar:
     def myview(self):
         print("User requested MYVIEW")
         for e in self.events:
-            for p in e.participants:
-                if self.ID in p:
-                    print(e)
-                    break
+            if self.ID in e.participants:
+                print(e)
 
     def checkpoint():
         print("Save a copy of the calendar")
+
+    def load_checkpoint():
+        print("Loading the calendar from log")
 
     def load():
         print("Loading the latest checkpoint into memory")
