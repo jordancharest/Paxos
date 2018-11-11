@@ -7,4 +7,5 @@ running = True
 worker = None
 calendar = None
 mutex = RLock()
-timeout = 0.500 # 500 milliseconds
+server_sleep = 0.1
+paxos_timeout = 5 * server_sleep
